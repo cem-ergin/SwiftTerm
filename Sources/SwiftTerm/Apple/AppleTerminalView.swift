@@ -570,8 +570,8 @@ struct FrameViewState: Sendable {
         cursorHasFocus = !view.caretViewTracksFocus || view.isFirstResponder
 #endif
         let backingScale = view.backingScaleFactor()
-        cellPixelWidth = cellPixelDimension(cellDimension.width, scale: backingScale)
-        cellPixelHeight = cellPixelDimension(cellDimension.height, scale: backingScale)
+        cellPixelWidth = cellPixelDimension(cellDimension.width, scale: renderingScale)
+        cellPixelHeight = cellPixelDimension(cellDimension.height, scale: renderingScale)
         imageScale = view.getImageScale()
         metalBufferingMode = view.metalBufferingMode
         antiAliasCustomBlockGlyphs = view.antiAliasCustomBlockGlyphs
