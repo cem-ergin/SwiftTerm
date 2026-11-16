@@ -138,8 +138,8 @@ final class TerminalMetalLayerView: TerminalMetalLayerViewBase {
     private func updateDrawableSize() {
         let scale = metalLayer.contentsScale
         if scale > 0 {
-            let newSize = CGSize(width: bounds.width * scale,
-                                 height: bounds.height * scale)
+            let newSize = CGSize(width: (bounds.width * scale).rounded(),
+                                 height: (bounds.height * scale).rounded())
             if newSize.width > 0, newSize.height > 0,
                metalLayer.drawableSize != newSize {
                 metalLayer.drawableSize = newSize
@@ -200,6 +200,7 @@ extension TerminalMetalLayerView: MetalRenderTarget {
         set {
             // Assigning an unchanged size still invalidates the drawable pool,
             // so guard it: this is touched every frame.
+            let newValue = CGSize(width: newValue.width.rounded(), height: newValue.height.rounded())
             guard newValue.width > 0, newValue.height > 0 else {
                 publishGeometry()
                 return

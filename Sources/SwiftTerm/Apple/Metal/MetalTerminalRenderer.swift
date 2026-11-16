@@ -1688,8 +1688,14 @@ final class MetalTerminalRenderer {
         let lineOriginPx = CGPoint(x: lineOrigin.x * scale, y: lineOrigin.y * scale)
         let cellWidthPx = cellWidth * scale
         let cellHeightPx = cellHeight * scale
-        let baseCellWidthPx = max(1, Int(round(cellWidthPx)))
         let baseCellHeightPx = max(1, Int(round(cellHeightPx)))
+        let snapsToPixels = scale != scale.rounded()
+        let snappedToPixel: (CGFloat) -> CGFloat = { snapsToPixels ? $0.rounded() : $0 }
+        let rowTopPx = round(lineOriginPx.y)
+        let rowHeightPx = max(1, Int(round(lineOriginPx.y + cellHeightPx) - rowTopPx))
+        func columnEdgePx(_ column: Int) -> CGFloat {
+            round(lineOriginPx.x + CGFloat(column) * cellWidthPx)
+        }
         let clipRect: ClipRect? = {
             switch renderMode {
             case .doubledDown, .doubledTop:
@@ -1720,13 +1726,13 @@ final class MetalTerminalRenderer {
             let minThicknessPx = max(1, Int(round(scale)))
             let baseThicknessPx = max(minThicknessPx,
                                       Int(round(scale * context.fonts.underlineThickness() * boxThicknessScale)))
-            let antiAliasBlocks = context.antiAliasCustomBlockGlyphs
+            let antiAliasBlocks = context.antiAliasCustomBlockGlyphs && !snapsToPixels
 
             for item in lineInfo.boxDrawings {
-                let itemWidthPx = baseCellWidthPx * item.columnWidth
+                let itemWidthPx = max(1, Int(columnEdgePx(item.column + item.columnWidth) - columnEdgePx(item.column)))
                 guard let entry = customGlyphEntry(codePoint: item.codePoint,
                                                    cellWidthPx: itemWidthPx,
-                                                   cellHeightPx: baseCellHeightPx,
+                                                   cellHeightPx: rowHeightPx,
                                                    scale: scale,
                                                    baseThicknessPx: baseThicknessPx,
                                                    antiAlias: false) else {
@@ -1737,12 +1743,10 @@ final class MetalTerminalRenderer {
                 let v0 = Float(entry.region.y) / atlasSize
                 let u1 = Float(entry.region.x + entry.region.width) / atlasSize
                 let v1 = Float(entry.region.y + entry.region.height) / atlasSize
-                let alignedOriginX = round(lineOriginPx.x)
-                let alignedOriginY = round(lineOriginPx.y)
-                let x0 = alignedOriginX + CGFloat(item.column * baseCellWidthPx)
-                let y0 = alignedOriginY
+                let x0 = columnEdgePx(item.column)
+                let y0 = rowTopPx
                 let x1 = x0 + CGFloat(itemWidthPx)
-                let placementHeightPx = antiAliasBlocks ? cellHeightPx : CGFloat(baseCellHeightPx)
+                let placementHeightPx = antiAliasBlocks ? cellHeightPx : CGFloat(rowHeightPx)
                 let y1 = y0 + placementHeightPx
                 let (tx0, ty0, tx1, ty1) = transformRect(x0: x0, y0: y0, x1: x1, y1: y1)
                 if let clipped = self.clipRect(tx0, ty0, tx1, ty1, u0, v0, u1, v1, clipRect) {
@@ -1764,11 +1768,11 @@ final class MetalTerminalRenderer {
                 if antiAliasBlocks {
                     itemWidthPx = max(1, Int(round(cellWidthPx * CGFloat(element.columnWidth))))
                 } else {
-                    itemWidthPx = baseCellWidthPx * element.columnWidth
+                    itemWidthPx = max(1, Int(columnEdgePx(element.column + element.columnWidth) - columnEdgePx(element.column)))
                 }
                 guard let entry = customGlyphEntry(codePoint: element.codePoint,
                                                    cellWidthPx: itemWidthPx,
-                                                   cellHeightPx: baseCellHeightPx,
+                                                   cellHeightPx: antiAliasBlocks ? baseCellHeightPx : rowHeightPx,
                                                    scale: scale,
                                                    baseThicknessPx: 0,
                                                    antiAlias: antiAliasBlocks) else {
@@ -1785,16 +1789,14 @@ final class MetalTerminalRenderer {
                     originX = lineOriginPx.x + CGFloat(element.column) * cellWidthPx
                     originY = lineOriginPx.y
                 } else {
-                    let alignedOriginX = round(lineOriginPx.x)
-                    let alignedOriginY = round(lineOriginPx.y)
-                    originX = alignedOriginX + CGFloat(element.column * baseCellWidthPx)
-                    originY = alignedOriginY
+                    originX = columnEdgePx(element.column)
+                    originY = rowTopPx
                 }
                 let x0 = originX
                 let y0 = originY
                 let placementWidthPx = antiAliasBlocks ? (cellWidthPx * CGFloat(element.columnWidth)) : CGFloat(itemWidthPx)
                 let x1 = x0 + placementWidthPx
-                let y1 = y0 + CGFloat(baseCellHeightPx)
+                let y1 = y0 + CGFloat(antiAliasBlocks ? baseCellHeightPx : rowHeightPx)
                 let (tx0, ty0, tx1, ty1) = transformRect(x0: x0, y0: y0, x1: x1, y1: y1)
                 if let clipped = self.clipRect(tx0, ty0, tx1, ty1, u0, v0, u1, v1, clipRect) {
                     let color = colorToSIMD(element.foregroundColor)
@@ -1811,10 +1813,10 @@ final class MetalTerminalRenderer {
             }
 
             for item in lineInfo.powerlineGlyphs {
-                let itemWidthPx = baseCellWidthPx * item.columnWidth
+                let itemWidthPx = max(1, Int(columnEdgePx(item.column + item.columnWidth) - columnEdgePx(item.column)))
                 guard let entry = customGlyphEntry(codePoint: item.codePoint,
                                                    cellWidthPx: itemWidthPx,
-                                                   cellHeightPx: baseCellHeightPx,
+                                                   cellHeightPx: rowHeightPx,
                                                    scale: scale,
                                                    baseThicknessPx: 0,
                                                    antiAlias: true) else {
@@ -1825,10 +1827,8 @@ final class MetalTerminalRenderer {
                 let v0 = Float(entry.region.y) / atlasSize
                 let u1 = Float(entry.region.x + entry.region.width) / atlasSize
                 let v1 = Float(entry.region.y + entry.region.height) / atlasSize
-                let alignedOriginX = round(lineOriginPx.x) + CGFloat(item.column * baseCellWidthPx)
-                let alignedOriginY = round(lineOriginPx.y)
-                let x0 = alignedOriginX
-                let y0 = alignedOriginY
+                let x0 = columnEdgePx(item.column)
+                let y0 = rowTopPx
                 let x1 = x0 + entry.size.width
                 let y1 = y0 + entry.size.height
                 let (tx0, ty0, tx1, ty1) = transformRect(x0: x0, y0: y0, x1: x1, y1: y1)
@@ -2091,8 +2091,8 @@ final class MetalTerminalRenderer {
                                                iconHeight: policyIconHeight)
                         let basePos = CGPoint(x: lineOrigin.x + (cellWidth * CGFloat(glyphColumn)) + intraCluster + fit.dx,
                                               y: lineOrigin.y + yOffset + ctPos.y + fit.dy)
-                        let pxX = basePos.x * scale + entry.bearing.x * fit.scaleX
-                        let pxY = basePos.y * scale + entry.bearing.y * fit.scaleY
+                        let pxX = snappedToPixel(basePos.x * scale) + entry.bearing.x * fit.scaleX
+                        let pxY = snappedToPixel(basePos.y * scale) + entry.bearing.y * fit.scaleY
 
                         let x0 = pxX
                         let y0 = pxY
@@ -3549,8 +3549,9 @@ final class MetalTerminalRenderer {
                                            ? CTFontGetAscent(context.fonts.normal as CTFont) * scale : 0)
                 let basePos = CGPoint(x: lineOrigin.x + cellWidth * doublePosition * CGFloat(cursor.visualCol) + fit.dx * doublePosition,
                                       y: lineOrigin.y + yOffset + ctPos.y + fit.dy)
-                let pxX = basePos.x * scale + entry.bearing.x * fit.scaleX
-                let pxY = basePos.y * scale + entry.bearing.y * fit.scaleY
+                let snapsToPixels = scale != scale.rounded()
+                let pxX = (snapsToPixels ? (basePos.x * scale).rounded() : basePos.x * scale) + entry.bearing.x * fit.scaleX
+                let pxY = (snapsToPixels ? (basePos.y * scale).rounded() : basePos.y * scale) + entry.bearing.y * fit.scaleY
                 let x0 = Float(pxX)
                 let y0 = Float(pxY)
                 let x1 = x0 + Float(entry.size.width * fit.scaleX)

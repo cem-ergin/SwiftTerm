@@ -701,7 +701,7 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
     }
 
     func metalRenderingScaleFactor() -> CGFloat {
-        max(1, metalScaleFactorOverride ?? backingScaleFactor())
+        metalScaleFactorOverride.map { max(0.1, $0) } ?? backingScaleFactor()
     }
 
     /// The value `usesMetalLayerSurface` starts at. `SWIFTTERM_METAL_LAYER=0`
@@ -1529,6 +1529,12 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
             (cols: terminal.cols, rows: terminal.rows)
         }
         return NSRect (x: 0, y: 0, width: cellDimension.width * CGFloat(size.cols) + reservedScrollerWidth, height: cellDimension.height * CGFloat(size.rows))
+    }
+
+    /// The columns and rows a frame of `size` would hold with the current font.
+    public func gridSize (fitting size: CGSize) -> (cols: Int, rows: Int)
+    {
+        (Int(getEffectiveWidth(size: size) / cellDimension.width), Int(size.height / cellDimension.height))
     }
 
     func getEffectiveWidth (size: CGSize) -> CGFloat
