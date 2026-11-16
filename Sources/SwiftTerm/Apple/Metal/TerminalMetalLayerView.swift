@@ -163,10 +163,14 @@ final class TerminalMetalLayerView: TerminalMetalLayerViewBase {
 
     override var isOpaque: Bool { metalLayer.isOpaque }
 
+    /// The scale the owning view asked for with `metalScaleFactorOverride`;
+    /// a backing change keeps it instead of resetting to the screen's scale.
+    var contentsScaleOverride: CGFloat?
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         if let scale = window?.backingScaleFactor {
-            renderContentsScale = scale
+            renderContentsScale = contentsScaleOverride ?? scale
         } else {
             updateDrawableSize()
         }

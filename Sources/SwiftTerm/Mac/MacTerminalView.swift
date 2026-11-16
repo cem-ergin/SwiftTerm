@@ -384,6 +384,7 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
             guard oldValue != metalScaleFactorOverride else { return }
             guard useMetalRenderer else { return }
             let scale = metalRenderingScaleFactor()
+            (metalView as? TerminalMetalLayerView)?.contentsScaleOverride = metalScaleFactorOverride == nil ? nil : scale
             metalView?.renderContentsScale = scale
             metalView?.renderDrawableSize = CGSize(width: bounds.width * scale,
                                                     height: bounds.height * scale)
@@ -792,6 +793,7 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
             // these matters and none of them show up in a pixel comparison.
             layerView.metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
             layerView.metalLayer.isOpaque = backgroundOpacity >= 1.0
+            layerView.contentsScaleOverride = metalScaleFactorOverride == nil ? nil : metalRenderingScaleFactor()
             layerView.renderContentsScale = metalRenderingScaleFactor()
             return layerView
         }
