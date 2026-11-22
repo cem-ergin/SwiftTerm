@@ -137,6 +137,13 @@ public class PseudoTerminalHelpers {
             _ = execve(cExecutable, cArgs.base, cEnv.base)
             _exit(127)
         }
+        // Children of later terminals must not inherit this primary side.
+        // An inherited copy keeps the pty allocated and stops the hangup
+        // from reaching this child's session when the owner closes it.
+        let descriptorFlags = fcntl(master, F_GETFD, 0)
+        if descriptorFlags >= 0 {
+            _ = fcntl(master, F_SETFD, descriptorFlags | FD_CLOEXEC)
+        }
         return (pid, master)
     }
     
