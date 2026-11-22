@@ -54,6 +54,17 @@ private final class LocalProcessChildReaper: @unchecked Sendable {
         kill(pid, signal)
     }
 
+    /// Signals the child's process group. Before the child has called setsid
+    /// there is no such group yet, so the child alone is signaled.
+    func signalGroup(_ signal: Int32) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard signalAllowed else { return }
+        if kill(-pid, signal) != 0 {
+            kill(pid, signal)
+        }
+    }
+
 #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
     func wait() -> Int32? {
         // Two callers can wait concurrently. Both observe with waitid; the
@@ -731,7 +742,28 @@ public class LocalProcess {
         }
         reaper?.signal(SIGTERM)
     }
-    
+
+    /// Sends `SIGHUP` to the child's process group, as closing a terminal
+    /// window does, and `SIGKILL` to that group if the same child has not
+    /// been reaped after `killDelay`. Use it for children that ignore
+    /// `SIGTERM`, such as an interactive shell.
+    public func hangUp(killAfter killDelay: TimeInterval) {
+        let reaper = session.withLock { state -> LocalProcessChildReaper? in
+            switch state.phase {
+            case .running, .terminating:
+                state.phase = .terminating
+                return state.reaper
+            default:
+                return nil
+            }
+        }
+        guard let reaper else { return }
+        reaper.signalGroup(SIGHUP)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + killDelay) {
+            reaper.signalGroup(SIGKILL)
+        }
+    }
+
     /**
      * Use this method to toggle the logging of data coming from the host, or pass nil to stop
      * - Parameter directory: location where the log files will be stored.
